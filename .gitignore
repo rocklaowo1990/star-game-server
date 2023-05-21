@@ -1,0 +1,4 @@
+# vscode 的配置文件，无需在其他电脑上打开
+.vscode
+__debug_bin
+

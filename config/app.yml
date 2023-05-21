@@ -1,0 +1,26 @@
+mysql:
+  user: root
+  password: Leo123213..
+  ip: 127.0.0.1
+  port: 3306
+  database: poker_game
+  charset: utf8mb4
+  parseTime: True
+  loc: Local
+
+boss:
+  account: rock
+  password: Leo123213..
+  uid: 88888888
+  nickName: 扑克盟主
+
+salt:
+  clent: PokerClent
+  server: PokerServer
+
+redis:
+  Addr: localhost:6379
+  Password: ''
+  DB: 0
+  PoolSize: 100
+  MinIdleConns: 100
