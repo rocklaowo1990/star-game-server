@@ -1,12 +1,30 @@
 package user_service
 
 import (
-	"poker_game/model"
-	"poker_game/res"
-	"poker_game/utils"
+	"fmt"
+	"star_game/model"
+	"star_game/res"
+	"star_game/utils"
 
 	"github.com/gin-gonic/gin"
 )
+
+type UserInfo struct {
+	Uid            string `json:"uid"`            // 用户的ID
+	Account        string `json:"account"`        // 用户账号
+	InvitationCode string `json:"invitationCode"` // 邀请码
+	Avatar         string `json:"avatar"`         // 用户头像
+	Sex            string `json:"sex"`            // 用户性别
+	Dress          string `json:"dress"`          // 用户地址
+	NickName       string `json:"nickName"`       // 用户的昵称
+	Phone          string `json:"phone"`          // 用户的手机
+	Email          string `json:"email"`          // 用户的邮箱
+	SuperiorID     string `json:"superiorID"`     // 上级ID
+	CreatIp        string `json:"creatIp"`        // 注册时的IP地址
+	Token          string `json:"token"`          // token
+	RoomId         string `json:"roomId"`         // 房间ID
+	Gold           int64  `json:"gold"`           // 金币
+}
 
 func SignIn(c *gin.Context) {
 	// 读取客户端传过来的数据
@@ -24,7 +42,7 @@ func SignIn(c *gin.Context) {
 	}
 
 	// 查找数据库是否存在相同的账号信息
-	findAccountResult, findAccountError := model.FindAccount(account)
+	findAccountResult, findAccountError := model.FindAccountInUserBasic(account)
 	if findAccountResult == nil && findAccountError == nil {
 		response := res.Response{
 			Code:    402,
@@ -44,11 +62,39 @@ func SignIn(c *gin.Context) {
 	}
 
 	if findAccountResult.Password == utils.Crypto(password, findAccountResult.Salt) {
+		token, err := utils.GenerateToken(findAccountResult.Uid)
+
+		if err != nil {
+			fmt.Println(err)
+			return
+		}
+
+		fmt.Println(token)
+		model.UpdataToken(findAccountResult, token)
+
+		data := UserInfo{
+			Uid:            findAccountResult.Uid,
+			Account:        findAccountResult.Account,
+			InvitationCode: findAccountResult.InvitationCode,
+			Avatar:         findAccountResult.Avatar,
+			Sex:            findAccountResult.Sex,
+			Dress:          findAccountResult.Dress,
+			NickName:       findAccountResult.NickName,
+			Phone:          findAccountResult.Phone,
+			Email:          findAccountResult.Email,
+			SuperiorID:     findAccountResult.SuperiorID,
+			CreatIp:        findAccountResult.CreatIp,
+			Token:          token,
+		}
+
 		response := res.Response{
 			Code:    200,
 			Message: "登陆成功",
+			Data:    data,
 		}
+
 		response.Send(c)
+
 		return
 	} else {
 		response := res.Response{

@@ -2,200 +2,159 @@ package service
 
 import (
 	"encoding/json"
-	"fmt"
+	"errors"
 	"net/http"
-	"time"
+	"sync"
 
 	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
-type SendMessage struct {
-	Type    int    `json:"type"`
-	Content string `json:"content"`
+type Connection struct {
+	wsConn *websocket.Conn
+	//读取websocket的channel
+	inChan chan []byte
+	//给websocket写消息的channel
+	outChan   chan []byte
+	closeChan chan byte
+	mutex     sync.Mutex
+	//closeChan 状态
+	isClosed bool
 }
 
-type ReplyMessage struct {
-	Port    int    `json:"code"`
-	Type    int    `json:"type"`
-	Content string `json:"content"`
-}
-
-type Client struct {
-	Uid     string          `json:"uid"`
-	SendUid string          `json:"sendUid"`
-	Socket  *websocket.Conn `json:"socket"`
-	Send    chan []byte     `json:"send"`
-}
-
-type Broadcast struct {
-	Client  *Client `json:"client"`
-	Message []byte  `json:"message"`
-	Type    int     `json:"type"`
-}
-
-type ClientManager struct {
-	Clients   map[string]*Client `json:"clients"`
-	Broadcast chan *Broadcast    `json:"broadcast"`
-	Reply     chan *Client       `json:"reply"`
-	SignUp    chan *Client       `json:"signUp"`
-	SignOut   chan *Client       `json:"signOut"`
-}
-
-type Message struct {
-	Sender    string `json:"sender,omitempty"`
-	Recipient string `json:"recipient,omitempty"`
-	Content   string `json:"content,,omitempty"`
-}
-
-var Manager = ClientManager{
-	Clients:   make(map[string]*Client),
-	Broadcast: make(chan *Broadcast),
-	SignUp:    make(chan *Client),
-	SignOut:   make(chan *Client),
-}
-
-func Handler(c *gin.Context) {
-	conn, err := (&websocket.Upgrader{
-		CheckOrigin: func(r *http.Request) bool { return true },
-	}).Upgrade(c.Writer, c.Request, nil)
-
-	if err != nil {
-		http.NotFound(c.Writer, c.Request)
+// 初始化长连接
+func InitConnection(wsConn *websocket.Conn) (conn *Connection, err error) {
+	conn = &Connection{
+		wsConn:    wsConn,
+		inChan:    make(chan []byte, 1000),
+		outChan:   make(chan []byte, 1000),
+		closeChan: make(chan byte, 1),
 	}
-
-	client := &Client{
-		Uid:     "777",
-		SendUid: "999",
-		Socket:  conn,
-		Send:    make(chan []byte),
-	}
-	fmt.Println(conn.ReadMessage())
-	Manager.SignUp <- client
-
-	go client.Read()
-	go client.Write()
+	//启动读协程
+	go conn.readLoop()
+	//启动写协程
+	go conn.writeLoop()
+	return
 }
 
-func (c *Client) Read() {
-	defer func() {
-		Manager.SignOut <- c
-		_ = c.Socket.Close()
-	}()
+// 读取websocket消息
+func (conn *Connection) ReadMessage() (data []byte, err error) {
+	select {
+	case data = <-conn.inChan:
+	case <-conn.closeChan:
+		err = errors.New("connection is closed")
+	}
+	return
+}
 
+// 发送消息到websocket
+func (conn *Connection) WriteMessage(data []byte) (err error) {
+	select {
+	case conn.outChan <- data:
+	case <-conn.closeChan:
+		err = errors.New("connection is closed")
+	}
+	return
+}
+
+// 关闭连接
+func (conn *Connection) Close() {
+	//线程安全的Close,可重入
+	conn.wsConn.Close()
+
+	//只执行一次
+	conn.mutex.Lock()
+	if !conn.isClosed {
+		close(conn.closeChan)
+		conn.isClosed = true
+	}
+	conn.mutex.Unlock()
+}
+
+func (conn *Connection) readLoop() {
+	var (
+		data []byte
+		err  error
+	)
 	for {
-		c.Socket.PingHandler()
-		sendMessage := new(SendMessage)
-
-		//c.Socket.SendMessage(sendMessage)
-		messageType, content, err := c.Socket.ReadMessage()
-		if err != nil {
-			fmt.Println(sendMessage)
-			fmt.Println("=> 数据格式不正确", err)
-			Manager.SignOut <- c
-			_ = c.Socket.Close()
-			break
+		if _, data, err = conn.wsConn.ReadMessage(); err != nil {
+			goto ERR
 		}
 
-		fmt.Println(messageType, string(content))
-
-		if sendMessage.Type == 1 { //发送消息
-			r1, _ := RedisClient.Get(Context, c.Uid).Result()
-			r2, _ := RedisClient.Get(Context, c.SendUid).Result()
-
-			if r1 > "3" && r2 == "" {
-				replyMessage := ReplyMessage{
-					Port:    8080,
-					Type:    200,
-					Content: "达到限制",
-				}
-
-				msg, _ := json.Marshal(replyMessage)
-				_ = c.Socket.WriteMessage(websocket.TextMessage, msg)
-				continue
-			}
-
-			RedisClient.Incr(Context, c.Uid)
-			_, _ = RedisClient.Expire(Context, c.Uid, time.Hour*24*30*3).Result()
-
-			fmt.Println(c.Uid, "发送消息给 ", c.SendUid, ": =>", sendMessage.Content)
-			Manager.Broadcast <- &Broadcast{
-				Client:  c,
-				Message: []byte(sendMessage.Content),
-			}
+		//如果数据量过大阻塞在这里,等待inChan有空闲的位置！
+		select {
+		case conn.inChan <- data:
+		case <-conn.closeChan:
+			//closeChan关闭的时候
+			goto ERR
 		}
 	}
+ERR:
+	conn.Close()
 }
 
-func (c *Client) Write() {
-	defer func() {
-		_ = c.Socket.Close()
-	}()
-
+func (conn *Connection) writeLoop() {
+	var (
+		data []byte
+		err  error
+	)
 	for {
 		select {
-		case message, ok := <-c.Send:
-			if !ok {
-				_ = c.Socket.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-
-			replyMessage := ReplyMessage{
-				Port:    8080,
-				Type:    200,
-				Content: string(message),
-			}
-
-			msg, _ := json.Marshal(replyMessage)
-			_ = c.Socket.WriteMessage(websocket.TextMessage, msg)
-
-		case message, ok := <-c.Send:
-			if !ok {
-				_ = c.Socket.WriteMessage(websocket.CloseMessage, []byte{})
-				return
-			}
-
-			replyMessage := ReplyMessage{
-				Port:    8080,
-				Type:    200,
-				Content: string(message),
-			}
-
-			msg, _ := json.Marshal(replyMessage)
-			_ = c.Socket.WriteMessage(websocket.TextMessage, msg)
+		case data = <-conn.outChan:
+		case <-conn.closeChan:
+			goto ERR
 
 		}
-
+		if err = conn.wsConn.WriteMessage(websocket.TextMessage, data); err != nil {
+			goto ERR
+		}
 	}
+ERR:
+	conn.Close()
 }
 
-func (manager *ClientManager) Client() {
+var (
+	upgrade = websocket.Upgrader{
+		//允许跨域
+		CheckOrigin: func(r *http.Request) bool {
+			return true
+		},
+	}
+)
+
+func WebSocketHandler(c *gin.Context) {
+	var (
+		//websocket 长连接
+		ws   *websocket.Conn
+		err  error
+		conn *Connection
+		data []byte
+	)
+	//header中添加Upgrade:websocket
+	if ws, err = upgrade.Upgrade(c.Writer, c.Request, nil); err != nil {
+		return
+	}
+
+	if conn, err = InitConnection(ws); err != nil {
+		goto ERR
+	}
+
 	for {
-		// fmt.Println("=> 监听管道通信")
-		select {
-		case conn := <-Manager.SignUp:
-			fmt.Println("=> 有新的连接", conn.Uid)
-			Manager.Clients[conn.Uid] = conn
-			replyMessage := ReplyMessage{
-				Port:    8080,
-				Type:    200,
-				Content: "已经连接到服务器了",
-			}
-			msg, _ := json.Marshal(replyMessage)
-			_ = conn.Socket.WriteMessage(websocket.TextMessage, msg)
-		case conn := <-Manager.SignOut:
-			fmt.Println("连接失败", conn.Uid)
-			if _, ok := Manager.Clients[conn.Uid]; ok {
-				replyMessage := &ReplyMessage{
-					Port:    8080,
-					Type:    200,
-					Content: "连接中断",
-				}
-				msg, _ := json.Marshal(replyMessage)
-				_ = conn.Socket.WriteMessage(websocket.TextMessage, msg)
-				close(conn.Send)
-				delete(manager.Clients, conn.Uid)
-			}
+		if data, err = conn.ReadMessage(); err != nil {
+			goto ERR
+		}
+
+		gameMessage := GameMessage{}
+
+		if err = json.Unmarshal(data, &gameMessage); err != nil {
+			goto ERR
+		}
+
+		if err = GameManager(conn, &gameMessage); err != nil {
+			goto ERR
 		}
 	}
+
+ERR:
+	conn.Close()
 }

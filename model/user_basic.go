@@ -3,7 +3,7 @@ package model
 import (
 	"errors"
 	"fmt"
-	"poker_game/utils"
+	"star_game/utils"
 
 	"github.com/spf13/viper"
 	"gorm.io/gorm"
@@ -15,7 +15,7 @@ type UserBasic struct {
 	Uid            string `json:"uid" gorm:"type:varchar(8);not null;unique"`            // 用户的ID
 	Account        string `json:"account" gorm:"type:varchar(16);not null;unique"`       // 用户账号
 	InvitationCode string `json:"invitationCode" gorm:"type:varchar(6);not null;unique"` // 邀请码
-	Password       string `json:"password" gorm:"type:varchar(32);not null"`             // 用户的密码
+	Password       string `json:"password" gorm:"type:varchar(128);not null"`            // 用户的密码
 	Salt           string `json:"salt" gorm:"type:varchar(8);not null:"`                 // 盐
 	Avatar         string `json:"avatar" gorm:"type:varchar(128);null"`                  // 用户头像
 	Sex            string `json:"sex" gorm:"type:varchar(16);null"`                      // 用户性别
@@ -25,6 +25,7 @@ type UserBasic struct {
 	Email          string `json:"email" gorm:"type:varchar(128);null"`                   // 用户的邮箱
 	SuperiorID     string `json:"superiorId" gorm:"type:varchar(8);null"`                // 上级ID
 	CreatIp        string `json:"creatIp" gorm:"type:varchar(64);null"`                  // 注册时的IP地址
+	Token          string `json:"token" gorm:"type:varchar(255);null"`                   // Token
 
 	// 邀请码
 	// 上级ID
@@ -59,7 +60,8 @@ func CreateBoss() {
 	userBasic.Account = viper.GetString("boss.account")
 	userBasic.Salt = utils.GetCode(8)
 	userBasic.InvitationCode = utils.GetCode((6))
-	userBasic.Password = utils.Crypto(viper.GetString("boss.password"), userBasic.Salt)
+	bossPassword := utils.Md5Encode(viper.GetString("boss.password") + viper.GetString("salt.client"))
+	userBasic.Password = utils.Crypto(bossPassword, userBasic.Salt)
 	userBasic.Uid = viper.GetString("boss.uid")
 	userBasic.NickName = viper.GetString("boss.nickName")
 	result := DB.Create(&userBasic)
@@ -71,7 +73,7 @@ func CreateBoss() {
 }
 
 // 查找账号
-func FindAccount(account string) (*UserBasic, error) {
+func FindAccountInUserBasic(account string) (*UserBasic, error) {
 	fmt.Println("=> 正在查找账号信息:", account)
 	userBasic := UserBasic{}
 	result := DB.First(&userBasic, "account = ?", account)
@@ -103,26 +105,29 @@ func FindUidByInvitationCode(invitationCode string) (*UserBasic, error) {
 
 // 创建数据库
 // 如果数据库不存在则创建数据库
-func CreateUserBasic() {
+func CreateDbUserBasic() {
 	userBasic := UserBasic{}
-	err := DB.AutoMigrate(&userBasic)
-	if err != nil {
-		fmt.Println("=> 数据创建失败: ", err)
-	} else {
-		fmt.Println("=> 数据库创建成功...")
-		fmt.Println("=> 正在创建内置账号...")
-		CreateBoss()
+	if !DB.Migrator().HasTable(userBasic.TableName()) {
+		userBasic := UserBasic{}
+		err := DB.AutoMigrate(&userBasic)
+		if err != nil {
+			fmt.Println("=> 数据创建失败: ", err)
+		} else {
+			fmt.Println("=> 数据库创建成功...")
+			fmt.Println("=> 正在创建内置账号...")
+			CreateBoss()
+		}
 	}
 }
 
-// 更新账号
-func UpdatePassword(user *UserBasic, value string) error {
-	result := DB.Model(&user).Update("Account", value)
+// 更新Token
+func UpdataToken(user *UserBasic, value string) error {
+	result := DB.Model(&user).Update("Token", value)
 	if result.Error != nil {
 		fmt.Println("=> 更新数据库错误: ", result.Error)
 		return result.Error
 	} else {
-		fmt.Println("=> 更新数据库成功过")
+		fmt.Println("=> 更新数据库成功")
 		return nil
 	}
 }

@@ -1,10 +1,10 @@
 package main
 
 import (
-	"poker_game/config"
-	"poker_game/model"
-	"poker_game/router"
-	"poker_game/service"
+	"star_game/config"
+	"star_game/model"
+	"star_game/router"
+	"star_game/service"
 )
 
 func main() {
@@ -17,7 +17,7 @@ func main() {
 	// 初始化 redis
 	service.InitRedis()
 
-	go service.Manager.Client()
+	// go service.Manager.Client()
 
 	// 启动接口监听
 	r := router.NewRouter()

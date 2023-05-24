@@ -50,5 +50,5 @@ func InitDB() {
 }
 
 func migration() {
-	CreateUserBasic()
+	CreateDbUserBasic()
 }

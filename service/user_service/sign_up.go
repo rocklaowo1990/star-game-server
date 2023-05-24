@@ -2,9 +2,9 @@ package user_service
 
 import (
 	"fmt"
-	"poker_game/model"
-	"poker_game/res"
-	"poker_game/utils"
+	"star_game/model"
+	"star_game/res"
+	"star_game/utils"
 
 	"github.com/gin-gonic/gin"
 	"github.com/spf13/viper"
@@ -18,6 +18,8 @@ func SignUp(c *gin.Context) {
 	password := c.Query("password")
 	invitationCode := c.Query("invitationCode")
 
+	fmt.Println(invitationCode)
+
 	// 如果客户端传过来的用户名或密码为空
 	if account == "" || password == "" {
 		response := res.Response{
@@ -30,7 +32,7 @@ func SignUp(c *gin.Context) {
 
 	// 查找数据库是否存在相同的账号信息
 	// 查询失败的情况
-	findAccountResult, findAccountError := model.FindAccount(account)
+	findAccountResult, findAccountError := model.FindAccountInUserBasic(account)
 	if findAccountError != nil {
 		response := res.Response{
 			Code:    -1,

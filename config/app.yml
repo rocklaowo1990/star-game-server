@@ -3,24 +3,24 @@ mysql:
   password: Leo123213..
   ip: 127.0.0.1
   port: 3306
-  database: poker_game
+  database: star_game
   charset: utf8mb4
   parseTime: True
   loc: Local
 
 boss:
-  account: rock
+  account: adminmaster
   password: Leo123213..
   uid: 88888888
-  nickName: 扑克盟主
+  nickName: 星盟主
 
 salt:
-  clent: PokerClent
-  server: PokerServer
+  client: 1StarGameClient1
+  server: 2StarGameServer2
 
 redis:
   Addr: localhost:6379
-  Password: ''
+  Password: ""
   DB: 0
-  PoolSize: 100
-  MinIdleConns: 100
+  # PoolSize: 100
+  # MinIdleConns: 100
