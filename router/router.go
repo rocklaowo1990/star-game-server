@@ -3,6 +3,7 @@ package router
 import (
 	"net/http"
 	"star_game/service"
+	"star_game/service/room_service"
 	"star_game/service/user_service"
 
 	"github.com/gin-gonic/gin"
@@ -10,7 +11,7 @@ import (
 
 func NewRouter() *gin.Engine {
 	r := gin.Default()
-	r.Use(Cors())
+	r.Use(cors())
 
 	user := r.Group("/user")
 	{
@@ -18,9 +19,16 @@ func NewRouter() *gin.Engine {
 		user.GET("/signin", user_service.SignIn)
 	}
 
+	room := r.Group("/room")
+	{
+		room.POST("/create", room_service.CreateRoom)
+		room.POST("/join", room_service.JoinRoom)
+		room.GET("/checkinroom", room_service.CheckInRoom)
+	}
+
 	config := r.Group("/config")
 	{
-		config.GET("/getConfig", service.ClientConfig)
+		config.GET("/getconfig", service.GetConfig)
 	}
 
 	r.GET("/ws", service.WebSocketHandler)
@@ -28,7 +36,7 @@ func NewRouter() *gin.Engine {
 	return r
 }
 
-func Cors() gin.HandlerFunc {
+func cors() gin.HandlerFunc {
 	return func(c *gin.Context) {
 		method := c.Request.Method
 		origin := c.Request.Header.Get("Origin")

@@ -42,8 +42,8 @@ func (UserBasic) TableName() string {
 // 添加一个用户
 func CreateUser(userBasic *UserBasic) error {
 	fmt.Println("=> 正在添加数据", userBasic)
-	result := DB.Create(&userBasic)
-	if result.Error != nil {
+
+	if result := DB.Create(&userBasic); result.Error != nil {
 		fmt.Println("=> 创建用户失败")
 		return result.Error
 	} else {
@@ -64,8 +64,7 @@ func CreateBoss() {
 	userBasic.Password = utils.Crypto(bossPassword, userBasic.Salt)
 	userBasic.Uid = viper.GetString("boss.uid")
 	userBasic.NickName = viper.GetString("boss.nickName")
-	result := DB.Create(&userBasic)
-	if result.Error != nil {
+	if result := DB.Create(&userBasic); result.Error != nil {
 		fmt.Println("=> 创建内置用户失败...")
 	} else {
 		fmt.Println("=> 创建内置用户成功...")
@@ -76,8 +75,7 @@ func CreateBoss() {
 func FindAccountInUserBasic(account string) (*UserBasic, error) {
 	fmt.Println("=> 正在查找账号信息:", account)
 	userBasic := UserBasic{}
-	result := DB.First(&userBasic, "account = ?", account)
-	if result.Error != nil {
+	if result := DB.First(&userBasic, "account = ?", account); result.Error != nil {
 		if errors.Is(result.Error, gorm.ErrRecordNotFound) {
 			fmt.Println("=> 查询无结果", result.Error)
 			return nil, nil
@@ -88,29 +86,28 @@ func FindAccountInUserBasic(account string) (*UserBasic, error) {
 		fmt.Println("=> 查询到数据", userBasic)
 		return &userBasic, nil
 	}
+
 }
 
 func FindUidByInvitationCode(invitationCode string) (*UserBasic, error) {
 	fmt.Println("=> 正在查找邀请码信息:", invitationCode)
 	userBasic := UserBasic{}
-	result := DB.First(&userBasic, "invitation_code = ?", invitationCode)
-	if result.Error != nil {
+	if result := DB.First(&userBasic, "invitation_code = ?", invitationCode); result.Error != nil {
 		fmt.Println("=> 查询有错误", result.Error)
 		return nil, result.Error
 	} else {
 		fmt.Println("=> 查询到数据", userBasic)
 		return &userBasic, nil
 	}
+
 }
 
 // 创建数据库
 // 如果数据库不存在则创建数据库
-func CreateDbUserBasic() {
+func CreateUserBasic() {
 	userBasic := UserBasic{}
 	if !DB.Migrator().HasTable(userBasic.TableName()) {
-		userBasic := UserBasic{}
-		err := DB.AutoMigrate(&userBasic)
-		if err != nil {
+		if err := DB.AutoMigrate(&userBasic); err != nil {
 			fmt.Println("=> 数据创建失败: ", err)
 		} else {
 			fmt.Println("=> 数据库创建成功...")
@@ -122,14 +119,14 @@ func CreateDbUserBasic() {
 
 // 更新Token
 func UpdataToken(user *UserBasic, value string) error {
-	result := DB.Model(&user).Update("Token", value)
-	if result.Error != nil {
+	if result := DB.Model(&user).Update("Token", value); result.Error != nil {
 		fmt.Println("=> 更新数据库错误: ", result.Error)
 		return result.Error
 	} else {
 		fmt.Println("=> 更新数据库成功")
 		return nil
 	}
+
 }
 
 // func GetUserList() *gorm.DB {

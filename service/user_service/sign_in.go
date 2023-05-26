@@ -27,6 +27,10 @@ type UserInfo struct {
 }
 
 func SignIn(c *gin.Context) {
+	var (
+		result *model.UserBasic
+		err    error
+	)
 	// 读取客户端传过来的数据
 	account := c.Query("account")
 	password := c.Query("password")
@@ -42,8 +46,7 @@ func SignIn(c *gin.Context) {
 	}
 
 	// 查找数据库是否存在相同的账号信息
-	findAccountResult, findAccountError := model.FindAccountInUserBasic(account)
-	if findAccountResult == nil && findAccountError == nil {
+	if result, err = model.FindAccountInUserBasic(account); err == nil && result == nil {
 		response := res.Response{
 			Code:    402,
 			Message: "账号不存在",
@@ -52,7 +55,7 @@ func SignIn(c *gin.Context) {
 		return
 	}
 
-	if findAccountError != nil {
+	if err != nil {
 		response := res.Response{
 			Code:    -1,
 			Message: "数据库连接失败,请稍后重试",
@@ -61,29 +64,30 @@ func SignIn(c *gin.Context) {
 		return
 	}
 
-	if findAccountResult.Password == utils.Crypto(password, findAccountResult.Salt) {
-		token, err := utils.GenerateToken(findAccountResult.Uid)
-
-		if err != nil {
-			fmt.Println(err)
+	if result.Password == utils.Crypto(password, result.Salt) {
+		var token string
+		if token, err = utils.GenerateToken(result.Uid); err != nil {
+			fmt.Println("=> 创建 token 出错", err)
 			return
 		}
 
-		fmt.Println(token)
-		model.UpdataToken(findAccountResult, token)
+		if err = model.UpdataToken(result, token); err != nil {
+			fmt.Println("=> 更新 token 出错", err)
+			return
+		}
 
 		data := UserInfo{
-			Uid:            findAccountResult.Uid,
-			Account:        findAccountResult.Account,
-			InvitationCode: findAccountResult.InvitationCode,
-			Avatar:         findAccountResult.Avatar,
-			Sex:            findAccountResult.Sex,
-			Dress:          findAccountResult.Dress,
-			NickName:       findAccountResult.NickName,
-			Phone:          findAccountResult.Phone,
-			Email:          findAccountResult.Email,
-			SuperiorID:     findAccountResult.SuperiorID,
-			CreatIp:        findAccountResult.CreatIp,
+			Uid:            result.Uid,
+			Account:        result.Account,
+			InvitationCode: result.InvitationCode,
+			Avatar:         result.Avatar,
+			Sex:            result.Sex,
+			Dress:          result.Dress,
+			NickName:       result.NickName,
+			Phone:          result.Phone,
+			Email:          result.Email,
+			SuperiorID:     result.SuperiorID,
+			CreatIp:        result.CreatIp,
 			Token:          token,
 		}
 

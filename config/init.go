@@ -9,8 +9,7 @@ import (
 func InitConfig() {
 	viper.SetConfigName("app")
 	viper.AddConfigPath("config")
-	err := viper.ReadInConfig()
-	if err != nil {
+	if err := viper.ReadInConfig(); err != nil {
 		fmt.Println("=> 配置信息初始化失败...")
 		fmt.Println("=> ", err)
 	} else {

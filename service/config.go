@@ -8,12 +8,12 @@ import (
 	"github.com/spf13/viper"
 )
 
-type clientConfig struct {
+type Config struct {
 	Salt string `json:"salt"`
 }
 
-func ClientConfig(c *gin.Context) {
-	data := clientConfig{
+func GetConfig(c *gin.Context) {
+	data := Config{
 		Salt: viper.GetString("salt.client"),
 	}
 	fmt.Println(data)

@@ -1,7 +1,6 @@
-package service
+package common
 
 import (
-	"context"
 	"fmt"
 
 	"github.com/redis/go-redis/v9"
@@ -10,20 +9,17 @@ import (
 
 var (
 	RedisClient *redis.Client
-	Context     context.Context
 )
 
 func InitRedis() {
 
 	rdb := redis.NewClient(&redis.Options{
-		Addr:     viper.GetString("redis.Addr"),
-		Password: viper.GetString("redis.Password"),
-		DB:       viper.GetInt("redis.DB"),
-		// PoolSize:     viper.GetInt("redis.PoolSize"),
-		// MinIdleConns: viper.GetInt("redis.MinIdleConns"),
+		Addr:         viper.GetString("redis.Addr"),
+		Password:     viper.GetString("redis.Password"),
+		DB:           viper.GetInt("redis.DB"),
+		PoolSize:     viper.GetInt("redis.PoolSize"),
+		MinIdleConns: viper.GetInt("redis.MinIdleConns"),
 	})
-
-	Context = context.Background()
 
 	// err := rdb.Set(Context, "key", "value", 0).Err()
 	// if err != nil {
@@ -51,3 +47,7 @@ func InitRedis() {
 	fmt.Println("=> Redis 初始化成功")
 	RedisClient = rdb
 }
+
+const (
+	PublishKey = "websocket"
+)

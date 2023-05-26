@@ -1,12 +1,9 @@
-package service
+package common
 
 import (
-	"encoding/json"
 	"errors"
-	"net/http"
 	"sync"
 
-	"github.com/gin-gonic/gin"
 	"github.com/gorilla/websocket"
 )
 
@@ -32,6 +29,7 @@ func InitConnection(wsConn *websocket.Conn) (conn *Connection, err error) {
 	}
 	//启动读协程
 	go conn.readLoop()
+
 	//启动写协程
 	go conn.writeLoop()
 	return
@@ -42,6 +40,7 @@ func (conn *Connection) ReadMessage() (data []byte, err error) {
 	select {
 	case data = <-conn.inChan:
 	case <-conn.closeChan:
+		conn.isClosed = true
 		err = errors.New("connection is closed")
 	}
 	return
@@ -71,6 +70,10 @@ func (conn *Connection) Close() {
 	conn.mutex.Unlock()
 }
 
+func (conn *Connection) IsClosed() bool {
+	return conn.isClosed
+}
+
 func (conn *Connection) readLoop() {
 	var (
 		data []byte
@@ -86,7 +89,6 @@ func (conn *Connection) readLoop() {
 		case conn.inChan <- data:
 		case <-conn.closeChan:
 			//closeChan关闭的时候
-			goto ERR
 		}
 	}
 ERR:
@@ -102,6 +104,7 @@ func (conn *Connection) writeLoop() {
 		select {
 		case data = <-conn.outChan:
 		case <-conn.closeChan:
+			// 用户断开连接
 			goto ERR
 
 		}
@@ -109,52 +112,6 @@ func (conn *Connection) writeLoop() {
 			goto ERR
 		}
 	}
-ERR:
-	conn.Close()
-}
-
-var (
-	upgrade = websocket.Upgrader{
-		//允许跨域
-		CheckOrigin: func(r *http.Request) bool {
-			return true
-		},
-	}
-)
-
-func WebSocketHandler(c *gin.Context) {
-	var (
-		//websocket 长连接
-		ws   *websocket.Conn
-		err  error
-		conn *Connection
-		data []byte
-	)
-	//header中添加Upgrade:websocket
-	if ws, err = upgrade.Upgrade(c.Writer, c.Request, nil); err != nil {
-		return
-	}
-
-	if conn, err = InitConnection(ws); err != nil {
-		goto ERR
-	}
-
-	for {
-		if data, err = conn.ReadMessage(); err != nil {
-			goto ERR
-		}
-
-		gameMessage := GameMessage{}
-
-		if err = json.Unmarshal(data, &gameMessage); err != nil {
-			goto ERR
-		}
-
-		if err = GameManager(conn, &gameMessage); err != nil {
-			goto ERR
-		}
-	}
-
 ERR:
 	conn.Close()
 }
