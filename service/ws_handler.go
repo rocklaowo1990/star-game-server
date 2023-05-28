@@ -9,13 +9,6 @@ import (
 	"github.com/gorilla/websocket"
 )
 
-type GameMessage struct {
-	Game   string         `json:"game"`
-	Type   string         `json:"type"`
-	RoomId string         `json:"roomId"`
-	Data   map[string]any `json:"data"`
-}
-
 func WebSocketHandler(c *gin.Context) {
 	var (
 		//websocket 长连接

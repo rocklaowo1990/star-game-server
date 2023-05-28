@@ -21,36 +21,30 @@ func RoomManagerHandler(c *gin.Context, conn *common.Connection) error {
 	)
 
 	if data, err = conn.ReadMessage(); err != nil {
-
 		if err = roomManager.OutHandler(conn); err != nil {
 			return err
 		}
 	}
 
-	gameMessage := res.GameMessage{}
+	wsReceive := res.WsReceive{}
 
 	// 解析用户传入的数据
-	if err = json.Unmarshal(data, &gameMessage); err != nil {
+	if err = json.Unmarshal(data, &wsReceive); err != nil {
 		fmt.Println("err", err)
 		return err
 	}
 
-	fmt.Println("gameMessage", gameMessage)
-
+	// 根据传过来的 roomId 寻找到房间 room
 	for index, room := range roomManager.Rooms {
-		if room.RoomId == gameMessage.RoomId {
-			switch gameMessage.Game {
+		if room.RoomId == wsReceive.RoomId {
+			switch wsReceive.Game {
 			case "pin_san_zhang":
-				fmt.Println("pin_san_zhang")
-
-				if err := pin_san_zhang.GameManagerHanler(&roomManager.Rooms[index], &gameMessage, conn); err != nil {
+				if err := pin_san_zhang.GameManagerHanler(&roomManager.Rooms[index], &wsReceive, conn); err != nil {
 					return err
 				}
 			}
 		}
 	}
-
-	fmt.Println("roomManager", roomManager)
 
 	return nil
 }

@@ -3,33 +3,35 @@ package pin_san_zhang
 import (
 	"encoding/json"
 	"fmt"
-	"star_game/common"
 	"star_game/res"
 )
 
-func enterRoom(room *res.Room, gameMessage *res.GameMessage, conn *common.Connection) error {
-	player := res.Player{}
-	player.Avatar = gameMessage.Data["avatar"].(string)
-	player.Sex = gameMessage.Data["sex"].(string)
-	player.Conn = conn
+func enterRoom(room *res.Room, player *res.Player) error {
 	player.Fraction = 0
 	player.IsReady = false
 	player.IsFolded = false
-	player.NickName = gameMessage.Data["nickName"].(string)
-	player.Uid = gameMessage.Data["uid"].(string)
+
+	if len(room.Players) == 0 {
+		room.TimerStart()
+	}
+
+	wsResponse := res.WsResponse{}
+	wsResponse.Type = "game"
 
 	if isFindUidFromRoom := room.FindUid(player.Uid); !isFindUidFromRoom {
-		room.Players = append(room.Players, player)
+		room.Players = append(room.Players, *player)
 		room.Message = fmt.Sprintf("%s 加入房间", player.NickName)
 	} else {
+		room.UpdateConn(player.Uid, player.Conn)
 		room.Message = fmt.Sprintf("%s 返回房间", player.NickName)
-		room.Upgrade(&player)
 	}
+
+	wsResponse.Data = room
 
 	var data []byte
 	var err error
 
-	if data, err = json.Marshal(&room); err != nil {
+	if data, err = json.Marshal(&wsResponse); err != nil {
 		return err
 	}
 
